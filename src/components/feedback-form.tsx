@@ -129,43 +129,34 @@ export function FeedbackForm({ onGenerate, isGenerating }: FeedbackFormProps) {
               className="h-9 text-[14px]"
             />
             {/* Quick select from DB */}
-            {students.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {students.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setInfo({ ...info, studentName: s.name, grade: s.grade, subject: s.subject })}
-                    className={`group relative px-2.5 py-0.5 rounded-md text-[12px] border transition-colors ${
-                      info.studentName === s.name
-                        ? "bg-teal/10 border-teal text-teal"
-                        : "border-border text-muted-foreground hover:border-teal/50 hover:text-foreground"
-                    }`}
-                  >
-                    {s.name}
-                    <span
-                      onClick={(e) => handleDeleteStudent(e, s.id)}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-muted-foreground/20 text-[10px] leading-4 text-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-destructive"
-                    >
-                      ×
-                    </span>
-                  </button>
-                ))}
-                <button
-                  onClick={() => setShowAddStudent(true)}
-                  className="px-2 py-0.5 rounded-md text-[12px] border border-dashed border-border text-muted-foreground hover:border-teal/50 hover:text-teal transition-colors"
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {students.map((s) => (
+                <span
+                  key={s.id}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[12px] border cursor-pointer transition-colors ${
+                    info.studentName === s.name
+                      ? "bg-teal/10 border-teal text-teal"
+                      : "border-border text-muted-foreground hover:border-teal/50 hover:text-foreground"
+                  }`}
                 >
-                  + 添加
-                </button>
-              </div>
-            )}
-            {students.length === 0 && !showAddStudent && (
+                  <span onClick={() => setInfo({ ...info, studentName: s.name, grade: s.grade, subject: s.subject })}>
+                    {s.name}
+                  </span>
+                  <span
+                    onClick={(e) => handleDeleteStudent(e, s.id)}
+                    className="text-[10px] text-muted-foreground/50 hover:text-destructive cursor-pointer leading-none"
+                  >
+                    ×
+                  </span>
+                </span>
+              ))}
               <button
                 onClick={() => setShowAddStudent(true)}
-                className="text-[12px] text-teal hover:underline mt-1"
+                className="px-2 py-0.5 rounded-md text-[12px] border border-dashed border-border text-muted-foreground hover:border-teal/50 hover:text-teal transition-colors"
               >
-                + 添加常用学生
+                + 添加
               </button>
-            )}
+            </div>
             {showAddStudent && (
               <div className="flex gap-2 mt-1">
                 <Input
