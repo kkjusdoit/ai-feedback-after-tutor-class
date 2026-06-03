@@ -1,0 +1,12 @@
+name = "ai-feedback-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[vars]
+ANTHROPIC_BASE_URL = "https://token-plan-sgp.xiaomimimo.com/anthropic"
+ANTHROPIC_MODEL = "mimo-v2.5-pro"
+
+[[d1_databases]]
+binding = "ai_feedback_db"
+database_name = "ai-feedback-db"
+database_id = "31d0c955-cbc1-44f9-8ca3-347b44641a35"

@@ -1,63 +1,127 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useCallback } from "react";
+import { AppSidebar } from "@/components/app-sidebar";
+import { FeedbackForm } from "@/components/feedback-form";
+import { FeedbackDisplay } from "@/components/feedback-display";
+import { recordsApi, generateFeedback } from "@/lib/api";
+import type { ClassroomInfo, Performance } from "@/lib/data";
+import { toast } from "sonner";
+
+export default function HomePage() {
+  const [feedback, setFeedback] = useState("");
+  const [currentInfo, setCurrentInfo] = useState<ClassroomInfo | null>(null);
+  const [currentPerf, setCurrentPerf] = useState<Performance | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerate = useCallback(async (info: ClassroomInfo, perf: Performance) => {
+    setIsGenerating(true);
+    setCurrentInfo(info);
+    setCurrentPerf(perf);
+
+    try {
+      const result = await generateFeedback({
+        studentName: info.studentName,
+        grade: info.grade,
+        subject: info.subject,
+        knowledgePoint: info.knowledgePoint,
+        performance: perf as unknown as Record<string, string>,
+        tone: perf.tone,
+      });
+      setFeedback(result);
+
+      await recordsApi.create({
+        student_name: info.studentName,
+        grade: info.grade,
+        subject: info.subject,
+        knowledge_point: info.knowledgePoint,
+        feedback_content: result,
+      });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "AI 生成失败，请稍后重试");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, []);
+
+  const handleRegenerate = useCallback(async () => {
+    if (!currentInfo || !currentPerf) return;
+    setIsGenerating(true);
+
+    try {
+      const result = await generateFeedback({
+        studentName: currentInfo.studentName,
+        grade: currentInfo.grade,
+        subject: currentInfo.subject,
+        knowledgePoint: currentInfo.knowledgePoint,
+        performance: currentPerf as unknown as Record<string, string>,
+        tone: currentPerf.tone,
+      });
+      setFeedback(result);
+
+      await recordsApi.create({
+        student_name: currentInfo.studentName,
+        grade: currentInfo.grade,
+        subject: currentInfo.subject,
+        knowledge_point: currentInfo.knowledgePoint,
+        feedback_content: result,
+      });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "AI 生成失败，请稍后重试");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [currentInfo, currentPerf]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+    <div className="flex min-h-screen">
+      <AppSidebar />
+      <main className="flex-1 ml-[220px]">
+        <header className="sticky top-0 z-30 bg-warm/80 backdrop-blur-md border-b border-border/60">
+          <div className="px-8 py-4 flex items-center justify-between">
+            <div>
+              <h2 className="font-heading text-[18px] font-semibold text-foreground">生成课后反馈</h2>
+              <p className="text-[13px] text-muted-foreground mt-0.5">填写课堂信息，AI 即可生成专业反馈</p>
+            </div>
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+              <span className="w-2 h-2 rounded-full bg-teal animate-pulse" />
+              AI 就绪
+            </div>
+          </div>
+        </header>
+
+        <div className="p-8">
+          <div className="max-w-[960px] mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 items-start">
+              <div className="sticky top-[85px]">
+                <FeedbackForm onGenerate={handleGenerate} isGenerating={isGenerating} />
+              </div>
+
+              <div>
+                {feedback ? (
+                  <FeedbackDisplay
+                    content={feedback}
+                    studentName={currentInfo?.studentName || ""}
+                    onRegenerate={handleRegenerate}
+                    isGenerating={isGenerating}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-24 text-center">
+                    <div className="w-20 h-20 rounded-2xl bg-teal-light/50 flex items-center justify-center mb-5">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-teal" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+                        <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
+                      </svg>
+                    </div>
+                    <h3 className="font-heading text-[16px] font-semibold text-foreground mb-2">等待生成反馈</h3>
+                    <p className="text-[13px] text-muted-foreground max-w-[260px] leading-relaxed">
+                      填写左侧课堂信息后，点击「生成课后反馈」按钮，AI 将为你生成专业的反馈内容
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>
