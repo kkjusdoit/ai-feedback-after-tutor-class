@@ -71,6 +71,12 @@ export const recordsApi = {
 
 // ---- AI Generate ----
 
+export interface GenerateResult {
+  text: string;
+  prompt: string;
+  fallback: boolean;
+}
+
 export async function generateFeedback(params: {
   studentName: string;
   grade: string;
@@ -78,10 +84,9 @@ export async function generateFeedback(params: {
   knowledgePoint: string;
   performance: Record<string, unknown>;
   tone: string;
-}): Promise<string> {
-  const data = await request<{ text: string }>("/api/generate", {
+}): Promise<GenerateResult> {
+  return request<GenerateResult>("/api/generate", {
     method: "POST",
     body: JSON.stringify(params),
   });
-  return data.text;
 }

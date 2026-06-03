@@ -5,6 +5,8 @@ compatibility_date = "2024-09-23"
 [vars]
 ANTHROPIC_BASE_URL = "https://token-plan-sgp.xiaomimimo.com/anthropic"
 ANTHROPIC_MODEL = "mimo-v2.5-pro"
+DEEPSEEK_BASE_URL = "https://88888.qzz.io"
+DEEPSEEK_MODEL = "Deepseek-v4-flash"
 
 [[d1_databases]]
 binding = "ai_feedback_db"

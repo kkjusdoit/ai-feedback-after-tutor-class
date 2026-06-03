@@ -2,6 +2,9 @@ interface Env {
   ANTHROPIC_BASE_URL: string;
   ANTHROPIC_API_KEY: string;
   ANTHROPIC_MODEL: string;
+  DEEPSEEK_BASE_URL: string;
+  DEEPSEEK_API_KEY: string;
+  DEEPSEEK_MODEL: string;
   ai_feedback_db: D1Database;
 }
 
@@ -24,6 +27,85 @@ const TONE_INSTRUCTIONS: Record<string, string> = {
   "简洁版": "精简到100-200字，只保留核心信息，适合快速发送。",
 };
 
+function buildPrompt(params: {
+  studentName: string;
+  grade: string;
+  subject: string;
+  knowledgePoint: string;
+  performance: Record<string, string>;
+  tone: string;
+}): string {
+  const { studentName, grade, subject, knowledgePoint, performance, tone } = params;
+  const toneInstruction = TONE_INSTRUCTIONS[tone] || TONE_INSTRUCTIONS["客观具体"];
+  const isShort = tone === "简洁版";
+
+  return `你是一位专业的${subject}老师，刚给${grade}学生${studentName}上完一节课。
+
+本节课知识点：${knowledgePoint}
+
+课堂表现评估：
+- 掌握情况：${performance.mastery}
+- 课堂状态：${performance.classState}
+- 作业情况：${performance.homework}
+- 课堂参与：${performance.participation}
+- 学习习惯：${performance.studyHabit}
+- 课堂产出：${performance.classOutput}
+
+请生成一条课后反馈，发送给家长。要求：
+
+1. 结构包含：本节课学习内容 → 知识掌握情况 → 课堂表现 → 学习建议 → 鼓励性总结
+2. 字数${isShort ? "100-200字" : "200-400字"}
+3. 语气：${toneInstruction}
+4. 像真实老师写的，有具体细节，不要空洞模板
+5. 禁止出现"AI""模型""系统"等词
+6. 直接输出反馈内容，不要加标题或前缀`;
+}
+
+async function tryMimo(env: Env, prompt: string, isShort: boolean): Promise<string | null> {
+  try {
+    const resp = await fetch(`${env.ANTHROPIC_BASE_URL}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: env.ANTHROPIC_MODEL,
+        max_tokens: isShort ? 512 : 1024,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json<{ content?: { text?: string }[] }>();
+    return data.content?.[0]?.text || null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryDeepSeek(env: Env, prompt: string, isShort: boolean): Promise<string | null> {
+  try {
+    const resp = await fetch(`${env.DEEPSEEK_BASE_URL}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.DEEPSEEK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: env.DEEPSEEK_MODEL,
+        max_tokens: isShort ? 512 : 1024,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json<{ choices?: { message?: { content?: string } }[] }>();
+    return data.choices?.[0]?.message?.content || null;
+  } catch {
+    return null;
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -44,48 +126,24 @@ export default {
           tone: string;
         }>();
 
-        const { studentName, grade, subject, knowledgePoint, performance, tone } = body;
-        const toneInstruction = TONE_INSTRUCTIONS[tone] || TONE_INSTRUCTIONS["客观具体"];
+        const { tone } = body;
         const isShort = tone === "简洁版";
+        const prompt = buildPrompt(body);
 
-        const prompt = `你是一位专业的${subject}老师，刚给${grade}学生${studentName}上完一节课。
+        // Try mimo first
+        let text = await tryMimo(env, prompt, isShort);
 
-本节课知识点：${knowledgePoint}
+        // Fallback to DeepSeek
+        if (!text) {
+          text = await tryDeepSeek(env, prompt, isShort);
+        }
 
-课堂表现评估：
-- 掌握情况：${performance.mastery}
-- 课堂状态：${performance.classState}
-- 作业情况：${performance.homework}
-- 课堂参与：${performance.participation}
-- 学习习惯：${performance.studyHabit}
-- 课堂产出：${performance.classOutput}
+        // Both failed - return prompt for manual copy
+        if (!text) {
+          return json({ text: "", prompt, fallback: true });
+        }
 
-请生成一条课后反馈，发送给家长。要求：
-
-1. 结构包含：本节课学习内容 → 知识掌握情况 → 课堂表现 → 学习建议 → 鼓励性总结
-2. 字数${isShort ? "100-200字" : "200-400字"}
-3. 语气：${toneInstruction}
-4. 像真实老师写的，有具体细节，不要空洞模板
-5. 禁止出现"AI""模型""系统"等词
-6. 直接输出反馈内容，不要加标题或前缀`;
-
-        const resp = await fetch(`${env.ANTHROPIC_BASE_URL}/v1/messages`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": env.ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: env.ANTHROPIC_MODEL,
-            max_tokens: isShort ? 512 : 1024,
-            messages: [{ role: "user", content: prompt }],
-          }),
-        });
-
-        if (!resp.ok) return json({ error: "AI 生成失败" }, 502);
-        const data = await resp.json<{ content?: { text?: string }[] }>();
-        return json({ text: data.content?.[0]?.text || "" });
+        return json({ text, fallback: false });
       }
 
       // ========== Students CRUD ==========
